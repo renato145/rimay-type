@@ -3,6 +3,7 @@ use global_hotkey::{
     GlobalHotKeyEvent, GlobalHotKeyManager,
     hotkey::{Code, HotKey, Modifiers},
 };
+use rimay_type::audio::AudioCapture;
 use tokio::sync::mpsc;
 use tray_icon::{Icon, TrayIconBuilder};
 
@@ -48,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Main async coordinator
-    let mut is_active = false;
+    let mut capture: Option<AudioCapture> = None;
     loop {
         tokio::select! {
             Some(e) = error_rx.recv() => {
@@ -57,15 +58,38 @@ async fn main() -> anyhow::Result<()> {
             Some(event) = event_rx.recv() => {
                 match event {
                     AppEvent::HotkeyPressed => {
-                        is_active = !is_active;
-                        println!("Toggled: {}", if is_active { "active" } else { "inactive" });
-                        tray_tx.send(TrayCommand::SetActive(is_active)).await?;
-                        // Future: start/stop recording, call Groq API, etc.
+                        handle_hotkey(&mut capture, &tray_tx).await?;
                     }
                 }
             }
         }
     }
+}
+
+async fn handle_hotkey(
+    capture: &mut Option<AudioCapture>,
+    tray_tx: &mpsc::Sender<TrayCommand>,
+) -> anyhow::Result<()> {
+    let is_active = capture.is_none();
+    println!("Toggled: {}", if is_active { "active" } else { "inactive" });
+    tray_tx.send(TrayCommand::SetActive(is_active)).await?;
+
+    match capture {
+        None => {
+            let new_capture = AudioCapture::new().context("Failed to create AudioCapture.")?;
+            new_capture.start()?;
+            *capture = Some(new_capture);
+        }
+        Some(old_capture) => {
+            let samples = old_capture.collect_until_stopped().await;
+            let n = samples.len();
+            let sample_rate = old_capture.sample_rate();
+            println!("({sample_rate}) {n}");
+            *capture = None;
+        }
+    }
+
+    Ok(())
 }
 
 fn run_gtk(tray_rx: mpsc::Receiver<TrayCommand>) -> anyhow::Result<()> {
