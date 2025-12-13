@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync"] }
 anyhow = "1.0"
+global-hotkey = "0.7"
 gtk = "0.18"
 image = "0.25"
 tray-icon = "0.21"
+glib = "0.21"
+async-channel = "2.5"
