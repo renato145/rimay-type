@@ -1,0 +1,10 @@
+[package]
+name = "rimay-type"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+gtk = "0.18"
+image = "0.25"
+tray-icon = "0.21"
