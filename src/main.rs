@@ -1,4 +1,5 @@
 use anyhow::Context;
+use enigo::{Enigo, Keyboard};
 use global_hotkey::{
     GlobalHotKeyEvent, GlobalHotKeyManager,
     hotkey::{Code, HotKey, Modifiers},
@@ -49,7 +50,8 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Main async coordinator
-    let groq_client = GroqClient::new(todo!());
+    let groq_client = GroqClient::new("api-key-here");
+    let mut enigo = Enigo::new(&enigo::Settings::default()).context("Failed to build Enigo.")?;
     let mut capture: Option<AudioCapture> = None;
     loop {
         tokio::select! {
@@ -59,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
             Some(event) = event_rx.recv() => {
                 match event {
                     AppEvent::HotkeyPressed => {
-                        handle_hotkey(&mut capture, &tray_tx, &groq_client).await?;
+                        handle_hotkey(&mut capture, &tray_tx, &groq_client, &mut enigo).await?;
                     }
                 }
             }
@@ -71,6 +73,7 @@ async fn handle_hotkey(
     capture: &mut Option<AudioCapture>,
     tray_tx: &mpsc::Sender<TrayCommand>,
     groq_client: &GroqClient,
+    enigo: &mut Enigo,
 ) -> anyhow::Result<()> {
     let is_active = capture.is_none();
     println!("Toggled: {}", if is_active { "active" } else { "inactive" });
@@ -87,11 +90,12 @@ async fn handle_hotkey(
                 .collect_until_stopped()
                 .await
                 .context("Failed to collect audio.")?;
-            let res = groq_client
+            let text = groq_client
                 .transcribe(wav_bytes)
                 .await
                 .context("Failed to transcribe.")?;
-            println!("Result: {res:?}");
+            println!("Result: {text:?}");
+            enigo.text(&text).context("Failed to type transcription.")?;
             *capture = None;
         }
     }
