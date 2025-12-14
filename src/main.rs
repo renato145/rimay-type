@@ -3,7 +3,7 @@ use global_hotkey::{
     GlobalHotKeyEvent, GlobalHotKeyManager,
     hotkey::{Code, HotKey, Modifiers},
 };
-use rimay_type::audio::AudioCapture;
+use rimay_type::{audio::AudioCapture, groq_client::GroqClient};
 use tokio::sync::mpsc;
 use tray_icon::{Icon, TrayIconBuilder};
 
@@ -49,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Main async coordinator
+    let groq_client = GroqClient::new(todo!());
     let mut capture: Option<AudioCapture> = None;
     loop {
         tokio::select! {
@@ -58,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
             Some(event) = event_rx.recv() => {
                 match event {
                     AppEvent::HotkeyPressed => {
-                        handle_hotkey(&mut capture, &tray_tx).await?;
+                        handle_hotkey(&mut capture, &tray_tx, &groq_client).await?;
                     }
                 }
             }
@@ -69,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
 async fn handle_hotkey(
     capture: &mut Option<AudioCapture>,
     tray_tx: &mpsc::Sender<TrayCommand>,
+    groq_client: &GroqClient,
 ) -> anyhow::Result<()> {
     let is_active = capture.is_none();
     println!("Toggled: {}", if is_active { "active" } else { "inactive" });
@@ -81,10 +83,15 @@ async fn handle_hotkey(
             *capture = Some(new_capture);
         }
         Some(old_capture) => {
-            let samples = old_capture.collect_until_stopped().await;
-            let n = samples.len();
-            let sample_rate = old_capture.sample_rate();
-            println!("({sample_rate}) {n}");
+            let wav_bytes = old_capture
+                .collect_until_stopped()
+                .await
+                .context("Failed to collect audio.")?;
+            let res = groq_client
+                .transcribe(wav_bytes)
+                .await
+                .context("Failed to transcribe.")?;
+            println!("Result: {res:?}");
             *capture = None;
         }
     }
