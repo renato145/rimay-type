@@ -57,7 +57,16 @@ language = "es"
 sudo apt install libgtk-3-dev libxdo-dev libappindicator3-dev
 ```
 
-### Build and install
+### Option 1: Download pre-built binary
+
+1. Download the latest release from the [Releases page](../../releases/latest)
+2. Make it executable and move to your PATH:
+   ```bash
+   chmod +x rimay-type-x86_64-linux
+   mv rimay-type-x86_64-linux ~/.cargo/bin/rimay-type
+   ```
+
+### Option 2: Using cargo
 
 ```bash
 cargo install --path .
