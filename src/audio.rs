@@ -70,14 +70,15 @@ pub fn encode_wav(samples: &[f32], sample_rate: u32, channels: u16) -> anyhow::R
     let spec = WavSpec {
         channels,
         sample_rate,
-        bits_per_sample: 32,
-        sample_format: SampleFormat::Float,
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
     };
     let mut cursor = Cursor::new(Vec::new());
     let mut writer = WavWriter::new(&mut cursor, spec).context("Failed to create WavWriter.")?;
     for &sample in samples {
+        let sample_i16 = (sample * 32767.0).clamp(-32768.0, 32767.0) as i16;
         writer
-            .write_sample(sample)
+            .write_sample(sample_i16)
             .context("Failed to write sample.")?;
     }
     writer.finalize().context("Failed to finalize writer.")?;

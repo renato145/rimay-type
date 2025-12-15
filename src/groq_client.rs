@@ -25,6 +25,7 @@ impl GroqClient {
             .text("model", "whisper-large-v3-turbo")
             .text("temperature", "0")
             .text("response_format", "json");
+        // TODO: handle errors
         let text = self
             .client
             .post("https://api.groq.com/openai/v1/audio/transcriptions")
