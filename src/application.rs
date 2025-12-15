@@ -17,6 +17,15 @@ pub enum AppEvent {
     KeyReleased(u32),
 }
 
+impl std::fmt::Display for AppEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AppEvent::KeyPressed(id, _) => write!(f, "KeyPressed({id})"),
+            AppEvent::KeyReleased(id) => write!(f, "KeyReleased({id})"),
+        }
+    }
+}
+
 enum TrayCommand {
     SetActive(bool),
 }
@@ -121,6 +130,7 @@ fn load_icon(bytes: &[u8]) -> anyhow::Result<Icon> {
     Icon::from_rgba(image.into_raw(), width, height).context("Failed to create icon.")
 }
 
+#[tracing::instrument(skip_all, fields(%event))]
 async fn handle_event(
     event: AppEvent,
     active_key_id: &mut Option<u32>,
@@ -148,7 +158,7 @@ async fn handle_event(
             true
         }
     };
-    println!("Toggled: {}", if is_active { "active" } else { "inactive" });
+    tracing::info!("Toggled: {}", if is_active { "active" } else { "inactive" });
     tray_tx.send(TrayCommand::SetActive(is_active)).await?;
     if is_active {
         let new_capture = AudioCapture::new().context("Failed to create AudioCapture.")?;
@@ -165,7 +175,6 @@ async fn handle_event(
             .transcribe(wav_bytes)
             .await
             .context("Failed to transcribe.")?;
-        println!("Result: {text:?}");
         enigo.text(&text).context("Failed to type transcription.")?;
         *capture = None;
     };

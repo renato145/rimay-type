@@ -30,7 +30,9 @@ impl AudioCapture {
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
                 let _ = tx.send(data.to_vec()); // ignore send errors
             },
-            |err| eprintln!("audio error: {}", err),
+            |e| {
+                tracing::error!(error.cause_chain=?e, error.message=%e, "Audio stream error.");
+            },
             None,
         )?;
 
@@ -53,7 +55,6 @@ impl AudioCapture {
             buffer.extend(chunk);
         }
         let wav_bytes = encode_wav(&buffer, self.sample_rate, self.channels)?;
-        print_wav_size(&wav_bytes);
         Ok(wav_bytes)
     }
 }
@@ -64,6 +65,7 @@ impl Drop for AudioCapture {
     }
 }
 
+#[tracing::instrument(skip(samples), fields(wav_size))]
 pub fn encode_wav(samples: &[f32], sample_rate: u32, channels: u16) -> anyhow::Result<Vec<u8>> {
     let spec = WavSpec {
         channels,
@@ -80,12 +82,7 @@ pub fn encode_wav(samples: &[f32], sample_rate: u32, channels: u16) -> anyhow::R
     }
     writer.finalize().context("Failed to finalize writer.")?;
     let wav_bytes = cursor.into_inner();
-    print_wav_size(&wav_bytes);
+    let wav_size_mb = wav_bytes.len() as f64 / 1024f64.powi(2);
+    tracing::Span::current().record("wav_size", format!("{wav_size_mb:.2} MB"));
     Ok(wav_bytes)
-}
-
-fn print_wav_size(wav_bytes: &[u8]) {
-    let size_kb = wav_bytes.len() as f64 / 1024.0;
-    let size_mb = size_kb / 1024.0;
-    println!("WAV size: {:.2} KB ({:.2} MB)", size_kb, size_mb);
 }

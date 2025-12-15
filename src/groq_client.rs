@@ -15,6 +15,7 @@ impl GroqClient {
         }
     }
 
+    #[tracing::instrument(skip_all, ret)]
     pub async fn transcribe(&self, wav_bytes: Vec<u8>) -> anyhow::Result<String> {
         let file_part = multipart::Part::bytes(wav_bytes)
             .file_name("audio.wav")
