@@ -4,11 +4,13 @@ use config::Config;
 use directories::BaseDirs;
 use global_hotkey::hotkey::HotKey;
 use itertools::Itertools;
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::create_dir, path::PathBuf};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Configuration {
+    pub groq_key: SecretString,
     pub keys: Vec<KeyConfig>,
 }
 
@@ -74,7 +76,9 @@ pub fn get_configuration() -> anyhow::Result<Configuration> {
         .context("Failed to deserialize configuration.")
 }
 
-const DEFAULT_CONFIGURATION: &str = r#"[[keys]]
+const DEFAULT_CONFIGURATION: &str = r#"groq_key = "YOUR_KEY_HERE"
+
+[[keys]]
 hotkey = "Super+;"
 # Required ID of the model to use ("whisper-large-v3-turbo" or "whisper-large-v3").
 model = "whisper-large-v3-turbo"

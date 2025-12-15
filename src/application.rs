@@ -7,6 +7,7 @@ use crate::{
 use anyhow::Context;
 use enigo::{Enigo, Keyboard};
 use global_hotkey::hotkey::HotKey;
+use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tray_icon::{Icon, TrayIconBuilder};
@@ -37,7 +38,7 @@ pub struct Application {
 
 impl Application {
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
-        let groq_key = std::env::var("GROQ_API_KEY").context("GROQ_API_KEY var not found.")?;
+        let groq_key = config.groq_key.expose_secret().to_string();
         let keys_config = config.parse_keys()?;
         Ok(Application {
             groq_key,
