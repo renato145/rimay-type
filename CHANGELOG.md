@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/renato145/rimay-type/compare/v0.1.0...v0.2.0) (2025-12-15)
+
+
+### Features
+
+* force wf run to add release ([959777f](https://github.com/renato145/rimay-type/commit/959777f1c29a57025242e5bddca97c561dc2f815))
+
 ## 0.1.0 (2025-12-15)
 
 
