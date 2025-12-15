@@ -172,12 +172,15 @@ async fn handle_event(
             .collect_until_stopped()
             .context("Failed to collect audio.")?;
         if let Some(wav_bytes) = wav_bytes {
-            let text = groq_client
-                .transcribe(wav_bytes)
-                .await
-                .context("Failed to transcribe.")?;
-            if !text.is_empty() {
-                enigo.text(&text).context("Failed to type transcription.")?;
+            match groq_client.transcribe(wav_bytes).await {
+                Ok(text) => {
+                    if !text.is_empty() {
+                        enigo.text(&text).context("Failed to type transcription.")?;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to call transcribe.");
+                }
             }
         }
         *capture = None;

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use reqwest::multipart;
 use serde::Deserialize;
 
@@ -25,18 +26,30 @@ impl GroqClient {
             .text("model", "whisper-large-v3-turbo")
             .text("temperature", "0")
             .text("response_format", "json");
-        // TODO: handle errors
-        let text = self
+        let response = self
             .client
             .post("https://api.groq.com/openai/v1/audio/transcriptions")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .multipart(form)
             .send()
-            .await?
-            .json::<GroqResult>()
-            .await?
-            .text;
-        Ok(text.trim().to_string())
+            .await?;
+        if response.status().is_success() {
+            let raw = response
+                .json::<serde_json::Value>()
+                .await
+                .context("Failed to get response.")?;
+            let text = serde_json::from_value::<GroqResult>(raw.clone())
+                .inspect_err(|_| tracing::info!(?raw, "Raw response."))
+                .context("Failed to deserialize GroqResult.")?
+                .text;
+            Ok(text.trim().to_string())
+        } else {
+            let e = response
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("Failed to read error response: {e}"));
+            anyhow::bail!("Groq error: {e}");
+        }
     }
 }
 
