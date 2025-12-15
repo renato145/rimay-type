@@ -67,15 +67,16 @@ impl Drop for AudioCapture {
 
 #[tracing::instrument(skip(samples), fields(wav_size))]
 pub fn encode_wav(samples: &[f32], sample_rate: u32, channels: u16) -> anyhow::Result<Vec<u8>> {
+    let samples = convert_to_mono(samples, channels);
     let spec = WavSpec {
-        channels,
+        channels: 1,
         sample_rate,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
     let mut cursor = Cursor::new(Vec::new());
     let mut writer = WavWriter::new(&mut cursor, spec).context("Failed to create WavWriter.")?;
-    for &sample in samples {
+    for sample in samples {
         let sample_i16 = (sample * 32767.0).clamp(-32768.0, 32767.0) as i16;
         writer
             .write_sample(sample_i16)
@@ -86,4 +87,14 @@ pub fn encode_wav(samples: &[f32], sample_rate: u32, channels: u16) -> anyhow::R
     let wav_size_mb = wav_bytes.len() as f64 / 1024f64.powi(2);
     tracing::Span::current().record("wav_size", format!("{wav_size_mb:.2} MB"));
     Ok(wav_bytes)
+}
+
+pub fn convert_to_mono(samples: &[f32], channels: u16) -> Vec<f32> {
+    if channels == 1 {
+        return samples.to_vec(); // already mono
+    }
+    samples
+        .chunks(channels as usize)
+        .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+        .collect()
 }
