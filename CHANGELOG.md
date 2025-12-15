@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/renato145/rimay-type/compare/v0.2.0...v0.2.1) (2025-12-15)
+
+
+### Bug Fixes
+
+* dependencies in release wf ([2654b70](https://github.com/renato145/rimay-type/commit/2654b700732c08d2a3e53d341277c0280829751e))
+
 ## [0.2.0](https://github.com/renato145/rimay-type/compare/v0.1.0...v0.2.0) (2025-12-15)
 
 
