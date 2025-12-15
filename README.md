@@ -86,3 +86,11 @@ To view logs: `journalctl --user -u rimay-type -f`
 To stop: `systemctl --user stop rimay-type`
 
 To disable: `systemctl --user disable rimay-type`
+
+## Solveit
+
+If you are interested in how I built this app using the [solveit](https://solve.it.com/), check this dialogs:
+
+- [01_intro](https://share.solve.it.com/d/c97af8c034c8b68d2588910b2d1c1fbe)
+- [02_mvp](https://share.solve.it.com/d/4098221672c8f85b8957a515926c34f6)
+- [03_system_integration](https://share.solve.it.com/d/745671bc221538b77db1160b78dca6c8)
