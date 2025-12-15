@@ -50,6 +50,14 @@ impl Application {
         let (event_tx, mut event_rx) = mpsc::channel::<AppEvent>(32);
         let (tray_tx, tray_rx) = mpsc::channel::<TrayCommand>(32);
         let (error_tx, mut error_rx) = mpsc::channel::<anyhow::Error>(1);
+        let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
+
+        ctrlc::set_handler(move || {
+            shutdown_tx
+                .blocking_send(())
+                .expect("Failed to send shutdown signal.");
+        })
+        .context("Failed to set ctrlc handler.")?;
 
         // Spawn GTK thread
         let error_tx_gtk = error_tx.clone();
@@ -72,19 +80,25 @@ impl Application {
 
         // Main async coordinator
         let groq_client = GroqClient::new(&self.groq_key);
-        let mut enigo =
-            Enigo::new(&enigo::Settings::default()).context("Failed to build Enigo.")?;
+        let mut enigo = Enigo::new(&enigo::Settings::default()).context(
+            "Failed to build Enigo (try running `setxkbmap` on your console and try again).",
+        )?;
         let mut capture: Option<AudioCapture> = None;
         let mut active_key_id = None;
         loop {
             tokio::select! {
                 Some(e) = error_rx.recv() => {
-                    panic!("Critical thread crashed: {}", e);
+                    tracing::error!(error.cause_chain=?e, error.message=%e, "Critical thread crashed.");
+                    return Err(e);
                 }
                 Some(event) = event_rx.recv() => {
                     handle_event(
                         event, &mut active_key_id, &mut capture, &tray_tx, &groq_client, &mut enigo
                     ).await?;
+                }
+                _ = shutdown_rx.recv() => {
+                    tracing::info!("ctrlc signal received, shutting down...");
+                    break Ok(());
                 }
             }
         }
