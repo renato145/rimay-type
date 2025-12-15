@@ -107,7 +107,7 @@ impl Application {
 }
 
 fn run_gtk(tray_rx: mpsc::Receiver<TrayCommand>) -> anyhow::Result<()> {
-    gtk::init().expect("Failed to init GTK");
+    gtk::init().context("Failed to init GTK")?;
     let inactive_icon = load_icon(include_bytes!("../icons/inactive.png"))?;
     let active_icon = load_icon(include_bytes!("../icons/active.png"))?;
     let tray_icon = TrayIconBuilder::new()
