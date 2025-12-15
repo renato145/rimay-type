@@ -1,21 +1,20 @@
 use crate::{audio::AudioCapture, groq_client::GroqClient, settings::Configuration};
 use anyhow::Context;
 use enigo::{Enigo, Keyboard};
-use global_hotkey::{
-    GlobalHotKeyEvent, GlobalHotKeyManager,
-    hotkey::{Code, HotKey, Modifiers},
-};
+use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, hotkey::HotKey};
 use tokio::sync::mpsc;
 use tray_icon::{Icon, TrayIconBuilder};
 
 pub struct Application {
     groq_key: String,
+    hotkey: HotKey,
 }
 
 impl Application {
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
         let groq_key = std::env::var("GROQ_API_KEY").context("GROQ_API_KEY var not found.")?;
-        Ok(Application { groq_key })
+        let hotkey = config.key.hotkey()?;
+        Ok(Application { groq_key, hotkey })
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
@@ -36,7 +35,9 @@ impl Application {
 
         // Spawn hotkey thread
         std::thread::spawn(move || {
-            if let Err(e) = run_hotkey_listener(event_tx).context("Hotkey thread error") {
+            if let Err(e) =
+                run_hotkey_listener(self.hotkey, event_tx).context("Hotkey thread error")
+            {
                 error_tx.blocking_send(e).expect("Failed to send error.");
             }
         });
@@ -111,9 +112,8 @@ fn load_icon(bytes: &[u8]) -> anyhow::Result<Icon> {
     Icon::from_rgba(image.into_raw(), width, height).context("Failed to create icon.")
 }
 
-fn run_hotkey_listener(event_tx: mpsc::Sender<AppEvent>) -> anyhow::Result<()> {
+fn run_hotkey_listener(hotkey: HotKey, event_tx: mpsc::Sender<AppEvent>) -> anyhow::Result<()> {
     let hotkey_manager = GlobalHotKeyManager::new().context("Failed to create hotkey manager")?;
-    let hotkey = HotKey::new(Some(Modifiers::SUPER), Code::Semicolon);
     hotkey_manager
         .register(hotkey)
         .context("Failed to register hotkey")?;

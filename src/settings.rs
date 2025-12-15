@@ -1,11 +1,35 @@
 use anyhow::Context;
 use config::Config;
 use directories::BaseDirs;
+use global_hotkey::hotkey::HotKey;
 use serde::{Deserialize, Serialize};
 use std::{fs::create_dir, path::PathBuf};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Configuration {}
+pub struct Configuration {
+    pub key: KeyConfig,
+}
+
+impl Default for Configuration {
+    fn default() -> Self {
+        Self {
+            key: KeyConfig {
+                hotkey: "Super+;".to_string(),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KeyConfig {
+    pub hotkey: String,
+}
+
+impl KeyConfig {
+    pub fn hotkey(&self) -> anyhow::Result<HotKey> {
+        self.hotkey.parse().context("Failed to parse hotkey.")
+    }
+}
 
 pub fn get_configuration() -> anyhow::Result<Configuration> {
     let path = get_config_path().context("Failed to get config path.")?;
@@ -25,7 +49,7 @@ fn get_config_path() -> anyhow::Result<PathBuf> {
     }
     let path = parent.join("config.toml");
     if !path.exists() {
-        let config = Configuration {};
+        let config = Configuration::default();
         let s = toml::to_string_pretty(&config).context("Failed to serialize config.")?;
         std::fs::write(&path, s).context("Failed to write to file.")?;
     }
