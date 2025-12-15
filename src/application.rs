@@ -86,6 +86,7 @@ impl Application {
         )?;
         let mut capture: Option<AudioCapture> = None;
         let mut active_key_id = None;
+        let mut current_opts = None;
         loop {
             tokio::select! {
                 Some(e) = error_rx.recv() => {
@@ -94,7 +95,8 @@ impl Application {
                 }
                 Some(event) = event_rx.recv() => {
                     handle_event(
-                        event, &mut active_key_id, &mut capture, &tray_tx, &groq_client, &mut enigo
+                        event, &mut current_opts, &mut active_key_id, &mut capture, &tray_tx,
+                        &groq_client, &mut enigo
                     ).await?;
                 }
                 _ = shutdown_rx.recv() => {
@@ -148,13 +150,14 @@ fn load_icon(bytes: &[u8]) -> anyhow::Result<Icon> {
 #[tracing::instrument(skip_all, fields(%event))]
 async fn handle_event(
     event: AppEvent,
+    current_opts: &mut Option<TranscribeOpts>,
     active_key_id: &mut Option<u32>,
     capture: &mut Option<AudioCapture>,
     tray_tx: &mpsc::Sender<TrayCommand>,
     groq_client: &GroqClient,
     enigo: &mut Enigo,
 ) -> anyhow::Result<()> {
-    let is_active = match (event, *active_key_id) {
+    let opts = match (event, *active_key_id) {
         (AppEvent::KeyPressed(_, _), Some(_)) | (AppEvent::KeyReleased(_), None) => {
             // Ignore event
             return Ok(());
@@ -165,40 +168,46 @@ async fn handle_event(
                 return Ok(());
             } else {
                 *active_key_id = None;
-                false
+                None
             }
         }
-        (AppEvent::KeyPressed(id, _), None) => {
+        (AppEvent::KeyPressed(id, opts), None) => {
             *active_key_id = Some(id);
-            true
+            Some(opts)
         }
     };
+    let is_active = opts.is_some();
     tracing::info!("Toggled: {}", if is_active { "active" } else { "inactive" });
     tray_tx.send(TrayCommand::SetActive(is_active)).await?;
-    if is_active {
-        let new_capture = AudioCapture::new().context("Failed to create AudioCapture.")?;
-        new_capture.start()?;
-        *capture = Some(new_capture);
-    } else {
-        let Some(old_capture) = capture else {
-            return Ok(());
-        };
-        let wav_bytes = old_capture
-            .collect_until_stopped()
-            .context("Failed to collect audio.")?;
-        if let Some(wav_bytes) = wav_bytes {
-            match groq_client.transcribe(wav_bytes).await {
-                Ok(text) => {
-                    if !text.is_empty() {
-                        enigo.text(&text).context("Failed to type transcription.")?;
+    match opts {
+        Some(opts) => {
+            let new_capture = AudioCapture::new().context("Failed to create AudioCapture.")?;
+            new_capture.start()?;
+            *current_opts = Some(opts);
+            *capture = Some(new_capture);
+        }
+        None => {
+            let Some(old_capture) = capture else {
+                return Ok(());
+            };
+            let opts = current_opts.take().context("No TranscribeOpts found.")?;
+            let wav_bytes = old_capture
+                .collect_until_stopped()
+                .context("Failed to collect audio.")?;
+            if let Some(wav_bytes) = wav_bytes {
+                match groq_client.transcribe(wav_bytes, opts).await {
+                    Ok(text) => {
+                        if !text.is_empty() {
+                            enigo.text(&text).context("Failed to type transcription.")?;
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to call transcribe.");
                     }
                 }
-                Err(e) => {
-                    tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to call transcribe.");
-                }
             }
+            *capture = None;
         }
-        *capture = None;
-    };
+    }
     Ok(())
 }
