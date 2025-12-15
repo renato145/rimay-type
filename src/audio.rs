@@ -47,7 +47,7 @@ impl AudioCapture {
         Ok(())
     }
 
-    pub async fn collect_until_stopped(&mut self) -> anyhow::Result<Vec<u8>> {
+    pub fn collect_until_stopped(&mut self) -> anyhow::Result<Vec<u8>> {
         let mut buffer = Vec::new();
         while let Ok(chunk) = self.receiver.try_recv() {
             buffer.extend(chunk);

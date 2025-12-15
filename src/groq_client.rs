@@ -38,6 +38,18 @@ impl GroqClient {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct TranscribeOpts {
+    /// Required ID of the model to use ("whisper-large-v3-turbo" or "whisper-large-v3").
+    pub model: String,
+    /// The language of the input audio. Supplying the input language in ISO-639-1 (i.e. en, tr`)
+    /// format will improve accuracy and latency.
+    pub language: Option<String>,
+    /// Prompt to guide the model's style or specify how to spell unfamiliar words. (limited to 224
+    /// tokens)
+    pub prompt: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 struct GroqResult {
     text: String,

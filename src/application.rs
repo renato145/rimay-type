@@ -1,20 +1,39 @@
-use crate::{audio::AudioCapture, groq_client::GroqClient, settings::Configuration};
+use crate::{
+    audio::AudioCapture,
+    groq_client::{GroqClient, TranscribeOpts},
+    hotkey_listener::run_hotkey_listener,
+    settings::Configuration,
+};
 use anyhow::Context;
 use enigo::{Enigo, Keyboard};
-use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, hotkey::HotKey};
+use global_hotkey::hotkey::HotKey;
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tray_icon::{Icon, TrayIconBuilder};
 
+#[derive(Debug)]
+pub enum AppEvent {
+    KeyPressed(u32, TranscribeOpts),
+    KeyReleased(u32),
+}
+
+enum TrayCommand {
+    SetActive(bool),
+}
+
 pub struct Application {
     groq_key: String,
-    hotkey: HotKey,
+    keys_config: HashMap<HotKey, TranscribeOpts>,
 }
 
 impl Application {
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
         let groq_key = std::env::var("GROQ_API_KEY").context("GROQ_API_KEY var not found.")?;
-        let hotkey = config.key.hotkey()?;
-        Ok(Application { groq_key, hotkey })
+        let keys_config = config.parse_keys()?;
+        Ok(Application {
+            groq_key,
+            keys_config,
+        })
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
@@ -36,7 +55,7 @@ impl Application {
         // Spawn hotkey thread
         std::thread::spawn(move || {
             if let Err(e) =
-                run_hotkey_listener(self.hotkey, event_tx).context("Hotkey thread error")
+                run_hotkey_listener(self.keys_config, event_tx).context("Hotkey thread error")
             {
                 error_tx.blocking_send(e).expect("Failed to send error.");
             }
@@ -47,30 +66,20 @@ impl Application {
         let mut enigo =
             Enigo::new(&enigo::Settings::default()).context("Failed to build Enigo.")?;
         let mut capture: Option<AudioCapture> = None;
+        let mut active_key_id = None;
         loop {
             tokio::select! {
                 Some(e) = error_rx.recv() => {
                     panic!("Critical thread crashed: {}", e);
                 }
                 Some(event) = event_rx.recv() => {
-                    match event {
-                        AppEvent::HotkeyPressed => {
-                            handle_hotkey(&mut capture, &tray_tx, &groq_client, &mut enigo).await?;
-                        }
-                    }
+                    handle_event(
+                        event, &mut active_key_id, &mut capture, &tray_tx, &groq_client, &mut enigo
+                    ).await?;
                 }
             }
         }
     }
-}
-
-#[derive(Debug)]
-enum AppEvent {
-    HotkeyPressed,
-}
-
-enum TrayCommand {
-    SetActive(bool),
 }
 
 fn run_gtk(tray_rx: mpsc::Receiver<TrayCommand>) -> anyhow::Result<()> {
@@ -112,50 +121,53 @@ fn load_icon(bytes: &[u8]) -> anyhow::Result<Icon> {
     Icon::from_rgba(image.into_raw(), width, height).context("Failed to create icon.")
 }
 
-fn run_hotkey_listener(hotkey: HotKey, event_tx: mpsc::Sender<AppEvent>) -> anyhow::Result<()> {
-    let hotkey_manager = GlobalHotKeyManager::new().context("Failed to create hotkey manager")?;
-    hotkey_manager
-        .register(hotkey)
-        .context("Failed to register hotkey")?;
-
-    let receiver = GlobalHotKeyEvent::receiver();
-    loop {
-        if let Ok(event) = receiver.recv()
-            && event.id == hotkey.id()
-        {
-            let _ = event_tx.blocking_send(AppEvent::HotkeyPressed);
-        }
-    }
-}
-
-async fn handle_hotkey(
+async fn handle_event(
+    event: AppEvent,
+    active_key_id: &mut Option<u32>,
     capture: &mut Option<AudioCapture>,
     tray_tx: &mpsc::Sender<TrayCommand>,
     groq_client: &GroqClient,
     enigo: &mut Enigo,
 ) -> anyhow::Result<()> {
-    let is_active = capture.is_none();
+    let is_active = match (event, *active_key_id) {
+        (AppEvent::KeyPressed(_, _), Some(_)) | (AppEvent::KeyReleased(_), None) => {
+            // Ignore event
+            return Ok(());
+        }
+        (AppEvent::KeyReleased(a), Some(b)) => {
+            if a != b {
+                // Ignore event
+                return Ok(());
+            } else {
+                *active_key_id = None;
+                false
+            }
+        }
+        (AppEvent::KeyPressed(id, _), None) => {
+            *active_key_id = Some(id);
+            true
+        }
+    };
     println!("Toggled: {}", if is_active { "active" } else { "inactive" });
     tray_tx.send(TrayCommand::SetActive(is_active)).await?;
-    match capture {
-        None => {
-            let new_capture = AudioCapture::new().context("Failed to create AudioCapture.")?;
-            new_capture.start()?;
-            *capture = Some(new_capture);
-        }
-        Some(old_capture) => {
-            let wav_bytes = old_capture
-                .collect_until_stopped()
-                .await
-                .context("Failed to collect audio.")?;
-            let text = groq_client
-                .transcribe(wav_bytes)
-                .await
-                .context("Failed to transcribe.")?;
-            println!("Result: {text:?}");
-            enigo.text(&text).context("Failed to type transcription.")?;
-            *capture = None;
-        }
-    }
+    if is_active {
+        let new_capture = AudioCapture::new().context("Failed to create AudioCapture.")?;
+        new_capture.start()?;
+        *capture = Some(new_capture);
+    } else {
+        let Some(old_capture) = capture else {
+            return Ok(());
+        };
+        let wav_bytes = old_capture
+            .collect_until_stopped()
+            .context("Failed to collect audio.")?;
+        let text = groq_client
+            .transcribe(wav_bytes)
+            .await
+            .context("Failed to transcribe.")?;
+        println!("Result: {text:?}");
+        enigo.text(&text).context("Failed to type transcription.")?;
+        *capture = None;
+    };
     Ok(())
 }

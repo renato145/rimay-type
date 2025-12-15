@@ -2455,6 +2455,7 @@ dependencies = [
  "gtk",
  "hound",
  "image",
+ "itertools",
  "reqwest",
  "serde",
  "serde_json",
