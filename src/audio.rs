@@ -49,7 +49,7 @@ impl AudioCapture {
         Ok(())
     }
 
-    pub fn collect_until_stopped(&mut self) -> anyhow::Result<Vec<u8>> {
+    pub fn collect_until_stopped(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
         let mut buffer = Vec::new();
         while let Ok(chunk) = self.receiver.try_recv() {
             buffer.extend(chunk);
@@ -65,8 +65,20 @@ impl Drop for AudioCapture {
     }
 }
 
+const MIN_DURATION_SECS: f32 = 0.5;
+
 #[tracing::instrument(skip(samples), fields(wav_size))]
-pub fn encode_wav(samples: &[f32], sample_rate: u32, channels: u16) -> anyhow::Result<Vec<u8>> {
+pub fn encode_wav(
+    samples: &[f32],
+    sample_rate: u32,
+    channels: u16,
+) -> anyhow::Result<Option<Vec<u8>>> {
+    let min_samples = (sample_rate as f32 * MIN_DURATION_SECS) as usize;
+    if samples.len() < min_samples {
+        tracing::info!("Skipping short audio.");
+        return Ok(None);
+    }
+
     let samples = convert_to_mono(samples, channels);
     let spec = WavSpec {
         channels: 1,
@@ -86,7 +98,7 @@ pub fn encode_wav(samples: &[f32], sample_rate: u32, channels: u16) -> anyhow::R
     let wav_bytes = cursor.into_inner();
     let wav_size_mb = wav_bytes.len() as f64 / 1024f64.powi(2);
     tracing::Span::current().record("wav_size", format!("{wav_size_mb:.2} MB"));
-    Ok(wav_bytes)
+    Ok(Some(wav_bytes))
 }
 
 pub fn convert_to_mono(samples: &[f32], channels: u16) -> Vec<f32> {

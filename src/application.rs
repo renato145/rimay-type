@@ -171,11 +171,15 @@ async fn handle_event(
         let wav_bytes = old_capture
             .collect_until_stopped()
             .context("Failed to collect audio.")?;
-        let text = groq_client
-            .transcribe(wav_bytes)
-            .await
-            .context("Failed to transcribe.")?;
-        enigo.text(&text).context("Failed to type transcription.")?;
+        if let Some(wav_bytes) = wav_bytes {
+            let text = groq_client
+                .transcribe(wav_bytes)
+                .await
+                .context("Failed to transcribe.")?;
+            if !text.is_empty() {
+                enigo.text(&text).context("Failed to type transcription.")?;
+            }
+        }
         *capture = None;
     };
     Ok(())
