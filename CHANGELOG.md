@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/renato145/rimay-type/compare/v0.2.1...v0.3.0) (2025-12-17)
+
+
+### Features
+
+* change tokio flavor to current_thread ([259024b](https://github.com/renato145/rimay-type/commit/259024b44df7f91000ee59f094dfe4e5f3d77f6f))
+
 ## [0.2.1](https://github.com/renato145/rimay-type/compare/v0.2.0...v0.2.1) (2025-12-15)
 
 
