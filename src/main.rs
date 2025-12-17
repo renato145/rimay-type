@@ -2,7 +2,7 @@ use anyhow::Context;
 use rimay_type::{application::Application, settings::get_configuration};
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     setup_tracing();
     let config = get_configuration().context("Failed to read configuration.")?;
