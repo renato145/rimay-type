@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - ".github/workflows/release.yml"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
 
 permissions:
   contents: write

@@ -1,14 +1,14 @@
 [Unit]
 Description=rimay-type speech-to-keyboard
 After=graphical-session.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
 ExecStart=%h/.cargo/bin/rimay-type
 Restart=on-failure
 RestartSec=3
-StartLimitBurst=5
-StartLimitIntervalSec=60
 PassEnvironment=DISPLAY XAUTHORITY
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
