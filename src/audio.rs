@@ -20,7 +20,7 @@ impl AudioCapture {
         let config = device
             .default_input_config()
             .context("No default config found.")?;
-        let sample_rate = config.sample_rate().0;
+        let sample_rate = config.sample_rate();
         let channels = config.channels();
 
         let (tx, rx) = mpsc::unbounded_channel();

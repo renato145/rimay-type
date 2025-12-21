@@ -12,7 +12,7 @@ image = "0.25"
 tray-icon = "0.21"
 glib = "0.21"
 async-channel = "2.5"
-cpal = "0.16"
+cpal = "0.17"
 hound = "3.5"
 reqwest = { version = "0.12", default-features = false, features = [
   "json",
