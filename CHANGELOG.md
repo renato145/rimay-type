@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/renato145/rimay-type/compare/v0.3.0...v0.4.0) (2025-12-21)
+
+
+### Features
+
+* update cpal crate ([412e87b](https://github.com/renato145/rimay-type/commit/412e87b295d765cecd17d21ded4f253add33e752))
+
 ## [0.3.0](https://github.com/renato145/rimay-type/compare/v0.2.1...v0.3.0) (2025-12-17)
 
 
